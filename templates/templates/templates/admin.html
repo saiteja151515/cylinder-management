@@ -1,0 +1,30 @@
+<h2>Reports</h2>
+<table border="1">
+<tr>
+<th>User</th><th>Date</th><th>Closing 142</th><th>Closing 19</th>
+</tr>
+
+{% for r in reports %}
+<tr>
+<td>{{r[2]}}</td>
+<td>{{r[1]}}</td>
+<td>{{r[9]}}</td>
+<td>{{r[10]}}</td>
+</tr>
+{% endfor %}
+</table>
+
+<h2>Logs</h2>
+<table border="1">
+<tr>
+<th>User</th><th>Action</th><th>Time</th>
+</tr>
+
+{% for l in logs %}
+<tr>
+<td>{{l[1]}}</td>
+<td>{{l[2]}}</td>
+<td>{{l[3]}}</td>
+</tr>
+{% endfor %}
+</table>
