@@ -6,14 +6,15 @@ import bcrypt
 app = Flask(__name__)
 app.secret_key = "secret123"
 
+# ---------------- DATABASE ----------------
 def get_db():
     return sqlite3.connect("database.db")
 
-# CREATE TABLES
 def init_db():
     conn = get_db()
     c = conn.cursor()
 
+    # USERS TABLE
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,
@@ -21,6 +22,7 @@ def init_db():
         role TEXT
     )''')
 
+    # REPORTS TABLE
     c.execute('''CREATE TABLE IF NOT EXISTS reports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT,
@@ -35,6 +37,7 @@ def init_db():
         closing_19 INTEGER
     )''')
 
+    # LOGS TABLE
     c.execute('''CREATE TABLE IF NOT EXISTS logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user TEXT,
@@ -45,21 +48,28 @@ def init_db():
     conn.commit()
     conn.close()
 
-# CREATE ADMIN
-def create_admin():
+# ---------------- CREATE USERS ----------------
+def create_users():
     conn = get_db()
     c = conn.cursor()
 
-    c.execute("SELECT * FROM users WHERE username='admin'")
-    if not c.fetchone():
-        hashed = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt())
-        c.execute("INSERT INTO users (username,password,role) VALUES (?,?,?)",
-                  ("admin", hashed, "admin"))
-        conn.commit()
+    users = [
+        ("admin", "admin123", "admin"),
+        ("shafi", "shafi123", "user"),
+        ("bhagath", "bhagath123", "user")
+    ]
 
+    for username, password, role in users:
+        c.execute("SELECT * FROM users WHERE username=?", (username,))
+        if not c.fetchone():
+            hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+            c.execute("INSERT INTO users (username,password,role) VALUES (?,?,?)",
+                      (username, hashed, role))
+
+    conn.commit()
     conn.close()
 
-# LOGIN
+# ---------------- LOGIN ----------------
 @app.route("/", methods=["GET","POST"])
 def login():
     if request.method == "POST":
@@ -74,11 +84,15 @@ def login():
         if result and bcrypt.checkpw(pwd.encode(), result[2]):
             session["user"] = user
             session["role"] = result[3]
-            return redirect("/dashboard")
+
+            if result[3] == "admin":
+                return redirect("/admin")
+            else:
+                return redirect("/dashboard")
 
     return render_template("login.html")
 
-# DASHBOARD
+# ---------------- DASHBOARD (USER + ADMIN) ----------------
 @app.route("/dashboard", methods=["GET","POST"])
 def dashboard():
     if "user" not in session:
@@ -92,17 +106,20 @@ def dashboard():
         s142 = int(request.form["s142"])
         s19 = int(request.form["s19"])
 
+        # AUTO CALCULATION
         c142 = o142 + r142 - s142
         c19 = o19 + r19 - s19
 
         conn = get_db()
         c = conn.cursor()
 
+        # SAVE REPORT
         c.execute("""INSERT INTO reports 
         (date,user,opening_142,opening_19,received_142,received_19,sold_142,sold_19,closing_142,closing_19)
         VALUES (?,?,?,?,?,?,?,?,?,?)""",
         (datetime.now(), session["user"], o142,o19,r142,r19,s142,s19,c142,c19))
 
+        # LOG ENTRY
         c.execute("INSERT INTO logs (user,action,time) VALUES (?,?,?)",
                   (session["user"], "Added Report", datetime.now()))
 
@@ -111,7 +128,7 @@ def dashboard():
 
     return render_template("dashboard.html")
 
-# ADMIN
+# ---------------- ADMIN PANEL ----------------
 @app.route("/admin")
 def admin():
     if session.get("role") != "admin":
@@ -123,14 +140,21 @@ def admin():
     c.execute("SELECT * FROM reports")
     reports = c.fetchall()
 
-    c.execute("SELECT * FROM logs")
+    c.execute("SELECT * FROM logs ORDER BY time DESC")
     logs = c.fetchall()
 
     conn.close()
 
     return render_template("admin.html", reports=reports, logs=logs)
 
+# ---------------- LOGOUT ----------------
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+# ---------------- RUN APP ----------------
 if __name__ == "__main__":
     init_db()
-    create_admin()
+    create_users()
     app.run()
