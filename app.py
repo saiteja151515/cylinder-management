@@ -154,7 +154,8 @@ def logout():
     return redirect("/")
 
 # ---------------- RUN APP ----------------
+init_db()
+create_users()
+
 if __name__ == "__main__":
-    init_db()
-    create_users()
     app.run()
